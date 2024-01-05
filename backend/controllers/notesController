@@ -1,0 +1,138 @@
+const asyncHandler = require("express-async-handler");
+const Note = require("../models/notesModel");
+const User = require("../models/userModel");
+
+//@desc Get all Notes
+//@route GET /api/notes
+//@access private
+const getNotes = asyncHandler(async (req, res) => {
+    const notes = await Note.find({user_id: req.user.id});
+    res.status(200).json(notes);
+});
+
+//@desc Create new Notes
+//@route POST /api/notes
+//@access private
+const createNotes = asyncHandler(async (req, res) => {
+    const { title, body } = req.body;
+    if(!title || !body) {
+      res.status(400);
+      throw new Error("All fields are mandatory");
+    }
+    const note = await Note.create({
+      title,
+      body,
+      user_id: req.user.id
+    });
+    res.status(201).json(note);
+});
+
+//@desc Get Note
+//@route GET /api/notes/:id
+//@access private
+const getNote = asyncHandler(async (req, res) => {
+    const note =await Note.findById(req.params.id);
+    if (!note) {
+      return res.status(404);
+      throw new Error("Note not found");
+    }
+    res.status(200).json(note);
+});
+
+//@desc Update Note
+//@route PUT /api/notes/:id
+//@access private
+const updateNote = asyncHandler(async (req, res) => {
+    const note =await Note.findById(req.params.id);
+    if (!note) {
+      return res.status(404);
+      throw new Error("Note not found");
+    } 
+
+    if (note.user_id.toString() !== req.user.id) {
+      res.status(403);
+      throw new Error("User doesn't have permission to update this notes");
+    }
+    
+    const updatedNote = await Note.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.status(200).json(updatedNote);
+});
+
+//@desc Delete Note
+//@route DELETE /api/notes/:id
+//@access private
+const deleteNote = asyncHandler(async (req, res) => {
+  const note =await Note.findById(req.params.id);
+  if (!note) {
+    return res.status(404);
+    throw new Error("Note not found");
+  } 
+
+  if (note.user_id.toString() !== req.user.id) {
+    res.status(403);
+    throw new Error("User doesn't have permission to update this notes");
+  }
+
+  await Note.deleteOne({_id: req.params.id});
+  res.status(200).json({ message: 'Note deleted successfully' });
+
+});
+
+//@desc search Notes
+//@route GET /api/notes/search
+//@access private
+const searchNotes = asyncHandler(async (req,res) => {
+    const result = await Note.aggregate(
+            [
+                {
+                  $search: {
+                    index: "search-notes",
+                    text: {
+                      query: req.query.q,
+                      path: {
+                        wildcard: "*"
+                      }
+                    }
+                  }
+                }
+              ]
+        );
+    res.status(200).send(result);
+});
+
+// //@desc Share Note with Another User
+// //@route POST /api/notes/:id/share
+// //@access private
+// const shareNotes = asyncHandler(async (req, res) => {
+//     console.log(req);
+    
+//     console.log(note);
+//     if (!note) {
+//       return res.status(404).json({ error: "Note not found" });
+//     }
+
+//     const {email} = req.body;
+
+//     const recipientUser = await User.findOne({email});
+
+//     // Check if the authenticated user is the owner of the note
+//     if (note.user_id.toString() !== req.user.id) {
+//       return res.status(403).json({ error: "User doesn't have permission to share this note" });
+//     }
+
+//     if (!recipientUser) {
+//       return res.status(404).json({ error: "Recipient user not found" });
+//     }
+
+//     // Check if the note is already shared with the recipient user
+//     if (!note.sharedWith.includes(recipientUser._id)) {
+//       note.sharedWith.push(recipientUser._id);
+//       await note.save();
+//       return res.status(200).json({ message: 'Note shared successfully' });
+//     } else {
+//       return res.status(400).json({ error: 'Note is already shared with this user' });
+//     }
+// });
+
+
+module.exports = {getNotes,createNotes,getNote,updateNote,deleteNote,searchNotes};
